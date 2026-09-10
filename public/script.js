@@ -27,6 +27,7 @@ promptEl.addEventListener("input", () => {
 });
 
 const suggestion = document.querySelector(".suggestion");
+
 if (suggestion) {
   suggestion.addEventListener("click", () => {
     promptEl.value = suggestion.dataset.prompt || "";
@@ -35,6 +36,10 @@ if (suggestion) {
   });
 }
 
+/* =========================
+   GENERATION STATE
+========================= */
+
 function setGenerating(isGenerating) {
   generateBtn.disabled = isGenerating;
   regenerateBtn.disabled = isGenerating;
@@ -42,14 +47,31 @@ function setGenerating(isGenerating) {
   countEl.disabled = isGenerating;
   styleEl.disabled = isGenerating;
   ratioEl.disabled = isGenerating;
+
   generateBtn.classList.toggle("is-loading", isGenerating);
-  generateBtn.querySelector(".btn-label").textContent = isGenerating ? "Creating..." : "Generate Image";
+
+  const btnLabel = generateBtn.querySelector(".btn-label");
+
+  if (btnLabel) {
+    btnLabel.textContent = isGenerating
+      ? "Creating..."
+      : "Generate Image";
+  }
+
   loading.hidden = !isGenerating;
-  if (isGenerating) resultGrid.innerHTML = "";
+
+  if (isGenerating) {
+    resultGrid.innerHTML = "";
+  }
 }
+
+/* =========================
+   GENERATE IMAGE
+========================= */
 
 async function generate() {
   const prompt = promptEl.value.trim();
+
   if (!prompt) {
     showError("Please describe the image you want to create.");
     promptEl.focus();
@@ -57,17 +79,32 @@ async function generate() {
   }
 
   hideError();
+
   resultSection.hidden = false;
+
   setGenerating(true);
+
   const requestedCount = Number(countEl.value) || 1;
-  loadingText.textContent = requestedCount === 1 ? "Creating your image..." : `Creating ${requestedCount} images...`;
-  loadingSubtext.textContent = "This can take a little while.";
-  resultSection.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  loadingText.textContent =
+    requestedCount === 1
+      ? "Creating your image..."
+      : `Creating ${requestedCount} images...`;
+
+  loadingSubtext.textContent =
+    "CanvasAI is generating your artwork. Please wait.";
+
+  resultSection.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
 
   try {
     const response = await fetch("/api/generate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({
         prompt,
         style: styleEl.value,
@@ -76,205 +113,666 @@ async function generate() {
       })
     });
 
-    const contentType = response.headers.get("content-type") || "";
-    const data = contentType.includes("application/json") ? await response.json() : { error: await response.text() };
-    if (!response.ok) throw new Error(data.error || "Generation failed.");
+    const contentType =
+      response.headers.get("content-type") || "";
+
+    const data = contentType.includes("application/json")
+      ? await response.json()
+      : {
+          error: await response.text()
+        };
+
+    if (!response.ok) {
+      throw new Error(
+        data.error || "Generation failed."
+      );
+    }
+
+    /* Store generated images */
 
     currentData = data;
-    currentImages = data.images || [data.image];
-    renderResults(currentImages, data);
+
+    currentImages =
+      data.images || [data.image];
+
+    /* Render the images first */
+
+    renderResults(
+      currentImages,
+      data
+    );
+
+    /* Save them to gallery */
+
     saveToGallery(data);
+
     renderGallery();
-  } catch (error) {
-    showError(error.message || "Something went wrong. Please try again.");
-  } finally {
+
+    /*
+      IMPORTANT:
+      Hide the loading state AFTER the images
+      have been successfully rendered.
+    */
+
     setGenerating(false);
+
+    /* Update loading text for future generations */
+
+    loadingText.textContent =
+      "Your image is ready!";
+
+    loadingSubtext.textContent =
+      "Create another image whenever you're ready.";
+
+  } catch (error) {
+
+    showError(
+      error.message ||
+      "Something went wrong. Please try again."
+    );
+
+    setGenerating(false);
+
+  } finally {
+
+    /*
+      Extra safety:
+      Make absolutely sure the loading state
+      is turned off even if something unexpected happens.
+    */
+
+    generateBtn.disabled = false;
+    regenerateBtn.disabled = false;
+    enhanceBtn.disabled = false;
+    countEl.disabled = false;
+    styleEl.disabled = false;
+    ratioEl.disabled = false;
+
+    generateBtn.classList.remove("is-loading");
+
+    const btnLabel =
+      generateBtn.querySelector(".btn-label");
+
+    if (btnLabel) {
+      btnLabel.textContent =
+        "Generate Image";
+    }
+
+    loading.hidden = true;
   }
 }
 
-generateBtn.addEventListener("click", generate);
-regenerateBtn.addEventListener("click", generate);
+/* =========================
+   BUTTONS
+========================= */
 
-promptEl.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") generate();
-});
+generateBtn.addEventListener(
+  "click",
+  generate
+);
 
-enhanceBtn.addEventListener("click", () => {
-  const base = promptEl.value.trim();
-  if (!base) {
-    promptEl.focus();
-    promptStatus.textContent = "Write a basic idea first, then enhance it.";
-    return;
+regenerateBtn.addEventListener(
+  "click",
+  generate
+);
+
+/* Ctrl + Enter */
+
+promptEl.addEventListener(
+  "keydown",
+  (event) => {
+
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      event.key === "Enter"
+    ) {
+      generate();
+    }
+
   }
+);
 
-  const styleHints = {
-    photorealistic: "photorealistic textures, natural skin and material detail",
-    cinematic: "cinematic lighting, dramatic depth, film still composition",
-    "3d": "high-quality 3D materials, realistic shadows, polished rendering",
-    anime: "detailed anime character art, expressive faces, clean linework",
-    cartoon: "stylized cartoon shapes, expressive poses, clean polished illustration",
-    watercolor: "soft watercolor washes, paper texture, delicate brushwork",
-    oil: "rich oil paint texture, visible brushwork, fine-art composition",
-    pencil: "precise graphite lines, subtle shading, textured paper",
-    comic: "bold ink lines, dynamic framing, dramatic comic shading",
-    pixel: "crisp pixel clusters, retro game art, carefully designed palette"
-  };
+/* =========================
+   ENHANCE PROMPT
+========================= */
 
-  const hint = styleHints[styleEl.value] || styleHints.cinematic;
-  const addition = `, ${hint}, strong subject focus, clear foreground and background, balanced composition, atmospheric lighting, highly detailed`;
+enhanceBtn.addEventListener(
+  "click",
+  () => {
 
-  if (!base.toLowerCase().includes("highly detailed")) {
-    promptEl.value = `${base}${addition}`.slice(0, 1000);
-    promptEl.dispatchEvent(new Event("input"));
+    const base =
+      promptEl.value.trim();
+
+    if (!base) {
+
+      promptEl.focus();
+
+      promptStatus.textContent =
+        "Write a basic idea first, then enhance it.";
+
+      return;
+    }
+
+    const styleHints = {
+
+      photorealistic:
+        "photorealistic textures, natural skin and material detail",
+
+      cinematic:
+        "cinematic lighting, dramatic depth, film still composition",
+
+      "3d":
+        "high-quality 3D materials, realistic shadows, polished rendering",
+
+      anime:
+        "detailed anime character art, expressive faces, clean linework",
+
+      cartoon:
+        "stylized cartoon shapes, expressive poses, clean polished illustration",
+
+      watercolor:
+        "soft watercolor washes, paper texture, delicate brushwork",
+
+      oil:
+        "rich oil paint texture, visible brushwork, fine-art composition",
+
+      pencil:
+        "precise graphite lines, subtle shading, textured paper",
+
+      comic:
+        "bold ink lines, dynamic framing, dramatic comic shading",
+
+      pixel:
+        "crisp pixel clusters, retro game art, carefully designed palette"
+    };
+
+    const hint =
+      styleHints[styleEl.value] ||
+      styleHints.cinematic;
+
+    const addition =
+      `, ${hint}, strong subject focus, clear foreground and background, balanced composition, atmospheric lighting, highly detailed`;
+
+    if (
+      !base
+        .toLowerCase()
+        .includes("highly detailed")
+    ) {
+
+      promptEl.value =
+        `${base}${addition}`.slice(
+          0,
+          1000
+        );
+
+      promptEl.dispatchEvent(
+        new Event("input")
+      );
+    }
+
+    promptStatus.textContent =
+      "Prompt enhanced. You can edit it before generating.";
   }
-  promptStatus.textContent = "Prompt enhanced. You can edit it before generating.";
-});
+);
 
-downloadBtn.addEventListener("click", async () => {
-  if (!currentImages.length) return;
-  if (currentImages.length === 1) {
-    downloadImage(currentImages[0]);
-    return;
+/* =========================
+   DOWNLOAD
+========================= */
+
+downloadBtn.addEventListener(
+  "click",
+  async () => {
+
+    if (!currentImages.length) {
+      return;
+    }
+
+    if (currentImages.length === 1) {
+
+      downloadImage(
+        currentImages[0]
+      );
+
+      return;
+    }
+
+    currentImages.forEach(
+      (image, index) => {
+
+        downloadImage(
+          image,
+          index + 1
+        );
+
+      }
+    );
   }
+);
 
-  currentImages.forEach((image, index) => downloadImage(image, index + 1));
-});
+function downloadImage(
+  dataUrl,
+  index = null
+) {
 
-function downloadImage(dataUrl, index = null) {
-  const a = document.createElement("a");
+  const a =
+    document.createElement("a");
+
   a.href = dataUrl;
-  a.download = `canvasai-${Date.now()}${index ? `-${index}` : ""}.png`;
+
+  a.download =
+    `canvasai-${Date.now()}${
+      index
+        ? `-${index}`
+        : ""
+    }.png`;
+
   document.body.appendChild(a);
+
   a.click();
+
   a.remove();
 }
 
-function renderResults(images, data) {
+/* =========================
+   RENDER RESULTS
+========================= */
+
+function renderResults(
+  images,
+  data
+) {
+
   resultGrid.innerHTML = "";
-  images.forEach((image, index) => {
-    const card = document.createElement("div");
-    card.className = "result-item";
 
-    const img = document.createElement("img");
-    img.src = image;
-    img.alt = data.prompt || "Generated AI artwork";
-    img.style.aspectRatio = `${data.width || 1} / ${data.height || 1}`;
+  images.forEach(
+    (image, index) => {
 
-    const row = document.createElement("div");
-    row.className = "result-item-actions";
-    const label = document.createElement("span");
-    label.textContent = images.length > 1 ? `Variation ${index + 1}` : `${data.width} × ${data.height}`;
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "mini-btn";
-    btn.textContent = "Download";
-    btn.addEventListener("click", () => downloadImage(image, index + 1));
-    row.append(label, btn);
+      const card =
+        document.createElement("div");
 
-    card.append(img, row);
-    resultGrid.appendChild(card);
-  });
+      card.className =
+        "result-item";
+
+      const img =
+        document.createElement("img");
+
+      img.src = image;
+
+      img.alt =
+        data.prompt ||
+        "Generated AI artwork";
+
+      img.style.aspectRatio =
+        `${data.width || 1} / ${
+          data.height || 1
+        }`;
+
+      const row =
+        document.createElement("div");
+
+      row.className =
+        "result-item-actions";
+
+      const label =
+        document.createElement("span");
+
+      label.textContent =
+        images.length > 1
+          ? `Variation ${index + 1}`
+          : `${data.width} × ${data.height}`;
+
+      const btn =
+        document.createElement("button");
+
+      btn.type = "button";
+
+      btn.className =
+        "mini-btn";
+
+      btn.textContent =
+        "Download";
+
+      btn.addEventListener(
+        "click",
+        () => {
+          downloadImage(
+            image,
+            index + 1
+          );
+        }
+      );
+
+      row.append(
+        label,
+        btn
+      );
+
+      card.append(
+        img,
+        row
+      );
+
+      resultGrid.appendChild(
+        card
+      );
+    }
+  );
 }
 
+/* =========================
+   ERROR
+========================= */
+
 function showError(message) {
-  errorEl.textContent = message;
+
+  errorEl.textContent =
+    message;
+
   errorEl.hidden = false;
 }
 
 function hideError() {
+
   errorEl.hidden = true;
+
   errorEl.textContent = "";
 }
 
+/* =========================
+   GALLERY
+========================= */
+
 function saveToGallery(data) {
+
   try {
-    const items = JSON.parse(localStorage.getItem("canvasai-gallery") || "[]");
-    const images = data.images || [data.image];
-    images.forEach((image, index) => {
-      items.unshift({
-        image,
-        prompt: data.prompt,
-        style: data.style,
-        aspectRatio: data.aspectRatio,
-        width: data.width,
-        height: data.height,
-        createdAt: data.createdAt,
-        variation: index + 1
-      });
-    });
-    localStorage.setItem("canvasai-gallery", JSON.stringify(items.slice(0, 8)));
+
+    const items =
+      JSON.parse(
+        localStorage.getItem(
+          "canvasai-gallery"
+        ) || "[]"
+      );
+
+    const images =
+      data.images ||
+      [data.image];
+
+    images.forEach(
+      (image, index) => {
+
+        items.unshift({
+
+          image,
+
+          prompt:
+            data.prompt,
+
+          style:
+            data.style,
+
+          aspectRatio:
+            data.aspectRatio,
+
+          width:
+            data.width,
+
+          height:
+            data.height,
+
+          createdAt:
+            data.createdAt,
+
+          variation:
+            index + 1
+        });
+      }
+    );
+
+    localStorage.setItem(
+      "canvasai-gallery",
+      JSON.stringify(
+        items.slice(0, 8)
+      )
+    );
+
   } catch (error) {
-    console.warn("Gallery storage limit reached. Current images remain available.", error);
+
+    console.warn(
+      "Gallery storage limit reached. Current images remain available.",
+      error
+    );
   }
 }
 
 function renderGallery() {
+
   let items = [];
+
   try {
-    items = JSON.parse(localStorage.getItem("canvasai-gallery") || "[]");
+
+    items =
+      JSON.parse(
+        localStorage.getItem(
+          "canvasai-gallery"
+        ) || "[]"
+      );
+
   } catch {
+
     items = [];
   }
 
   gallery.innerHTML = "";
-  emptyGallery.hidden = items.length > 0;
-  clearGallery.hidden = items.length === 0;
 
-  items.forEach((item) => {
-    const wrapper = document.createElement("article");
-    wrapper.className = "gallery-item";
+  emptyGallery.hidden =
+    items.length > 0;
 
-    const img = document.createElement("img");
-    img.src = item.image;
-    img.alt = item.prompt || "Generated image";
-    img.loading = "lazy";
-    img.addEventListener("click", () => openHistoryItem(item));
+  clearGallery.hidden =
+    items.length === 0;
 
-    const info = document.createElement("div");
-    info.className = "gallery-info";
-    const title = document.createElement("p");
-    title.textContent = item.prompt || "Untitled creation";
-    const meta = document.createElement("span");
-    meta.textContent = `${item.style || "cinematic"} · ${item.aspectRatio || "1:1"}`;
-    info.append(title, meta);
+  items.forEach(
+    (item) => {
 
-    const download = document.createElement("button");
-    download.type = "button";
-    download.className = "gallery-download";
-    download.textContent = "↓";
-    download.title = "Download";
-    download.addEventListener("click", () => downloadImage(item.image));
+      const wrapper =
+        document.createElement(
+          "article"
+        );
 
-    wrapper.append(img, info, download);
-    gallery.appendChild(wrapper);
+      wrapper.className =
+        "gallery-item";
+
+      const img =
+        document.createElement(
+          "img"
+        );
+
+      img.src =
+        item.image;
+
+      img.alt =
+        item.prompt ||
+        "Generated image";
+
+      img.loading =
+        "lazy";
+
+      img.addEventListener(
+        "click",
+        () => {
+          openHistoryItem(item);
+        }
+      );
+
+      const info =
+        document.createElement(
+          "div"
+        );
+
+      info.className =
+        "gallery-info";
+
+      const title =
+        document.createElement(
+          "p"
+        );
+
+      title.textContent =
+        item.prompt ||
+        "Untitled creation";
+
+      const meta =
+        document.createElement(
+          "span"
+        );
+
+      meta.textContent =
+        `${item.style || "cinematic"} · ${
+          item.aspectRatio || "1:1"
+        }`;
+
+      info.append(
+        title,
+        meta
+      );
+
+      const download =
+        document.createElement(
+          "button"
+        );
+
+      download.type =
+        "button";
+
+      download.className =
+        "gallery-download";
+
+      download.textContent =
+        "↓";
+
+      download.title =
+        "Download";
+
+      download.addEventListener(
+        "click",
+        () => {
+          downloadImage(
+            item.image
+          );
+        }
+      );
+
+      wrapper.append(
+        img,
+        info,
+        download
+      );
+
+      gallery.appendChild(
+        wrapper
+      );
+    }
+  );
+}
+
+/* =========================
+   OPEN HISTORY ITEM
+========================= */
+
+function openHistoryItem(item) {
+
+  currentImages = [
+    item.image
+  ];
+
+  currentData = item;
+
+  resultSection.hidden =
+    false;
+
+  renderResults(
+    currentImages,
+    item
+  );
+
+  resultSection.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
   });
 }
 
-function openHistoryItem(item) {
-  currentImages = [item.image];
-  currentData = item;
-  resultSection.hidden = false;
-  renderResults(currentImages, item);
-  resultSection.scrollIntoView({ behavior: "smooth", block: "center" });
+/* =========================
+   CLEAR GALLERY
+========================= */
+
+clearGallery.addEventListener(
+  "click",
+  () => {
+
+    localStorage.removeItem(
+      "canvasai-gallery"
+    );
+
+    renderGallery();
+  }
+);
+
+/* =========================
+   DARK / LIGHT THEME
+========================= */
+
+themeToggle.addEventListener(
+  "click",
+  () => {
+
+    document.body.classList.toggle(
+      "dark"
+    );
+
+    const dark =
+      document.body.classList.contains(
+        "dark"
+      );
+
+    themeToggle.textContent =
+      dark ? "☀" : "☾";
+
+    themeToggle.setAttribute(
+      "aria-label",
+      dark
+        ? "Switch to light theme"
+        : "Switch to dark theme"
+    );
+
+    localStorage.setItem(
+      "canvasai-theme",
+      dark
+        ? "dark"
+        : "light"
+    );
+  }
+);
+
+/* Restore theme */
+
+if (
+  localStorage.getItem(
+    "canvasai-theme"
+  ) === "dark"
+) {
+
+  document.body.classList.add(
+    "dark"
+  );
+
+  themeToggle.textContent =
+    "☀";
 }
 
-clearGallery.addEventListener("click", () => {
-  localStorage.removeItem("canvasai-gallery");
-  renderGallery();
-});
+/* Counter */
 
-themeToggle.addEventListener("click", () => {
-  document.body.classList.toggle("dark");
-  const dark = document.body.classList.contains("dark");
-  themeToggle.textContent = dark ? "☀" : "☾";
-  themeToggle.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
-  localStorage.setItem("canvasai-theme", dark ? "dark" : "light");
-});
+counter.textContent =
+  `${promptEl.value.length} / 1000`;
 
-if (localStorage.getItem("canvasai-theme") === "dark") {
-  document.body.classList.add("dark");
-  themeToggle.textContent = "☀";
-}
+/* Load gallery */
 
-counter.textContent = `${promptEl.value.length} / 1000`;
 renderGallery();
