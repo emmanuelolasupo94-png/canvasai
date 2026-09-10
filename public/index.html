@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CanvasAI — create AI images from simple text prompts.">
+  <title>CanvasAI — AI Image Studio</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">Canvas<span>AI</span></a>
+    <div class="top-actions">
+      <span class="status-dot"><i></i> AI Studio</span>
+      <button id="themeToggle" class="icon-btn" type="button" aria-label="Toggle theme">☾</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="hero">
+      <p class="eyebrow">AI IMAGE STUDIO</p>
+      <h1>Turn your ideas into images.</h1>
+      <p class="subtitle">Describe what you imagine and CanvasAI will bring it to life.</p>
+    </section>
+
+    <section class="generator-card">
+      <div class="label-row">
+        <label for="prompt">Describe your image</label>
+        <span class="shortcut">Ctrl + Enter to generate</span>
+      </div>
+      <textarea id="prompt" maxlength="1000" placeholder="A futuristic Lagos skyline at sunset, cinematic lighting..."></textarea>
+      <div class="prompt-row">
+        <span id="counter">0 / 1000</span>
+        <button class="suggestion" type="button" data-prompt="A mysterious ancient city hidden inside a giant forest, cinematic atmosphere">Try an example</button>
+      </div>
+
+      <div class="prompt-tools">
+        <button id="enhanceBtn" class="tool-btn" type="button">✦ Enhance prompt</button>
+        <span id="promptStatus">Add details like subject, setting, lighting and mood.</span>
+      </div>
+
+      <div class="controls">
+        <div>
+          <label for="style">Style</label>
+          <select id="style">
+            <option value="photorealistic">Photorealistic</option>
+            <option value="cinematic" selected>Cinematic</option>
+            <option value="3d">3D Render</option>
+            <option value="anime">Anime</option>
+            <option value="cartoon">Cartoon</option>
+            <option value="watercolor">Watercolor</option>
+            <option value="oil">Oil Painting</option>
+            <option value="pencil">Pencil Sketch</option>
+            <option value="comic">Comic Book</option>
+            <option value="pixel">Pixel Art</option>
+          </select>
+        </div>
+        <div>
+          <label for="ratio">Aspect ratio</label>
+          <select id="ratio">
+            <option value="1:1">Square — 1:1</option>
+            <option value="16:9">Landscape — 16:9</option>
+            <option value="9:16" selected>Portrait — 9:16</option>
+            <option value="4:5">Portrait — 4:5</option>
+          </select>
+        </div>
+        <div>
+          <label for="count">Images</label>
+          <select id="count">
+            <option value="1" selected>1 image</option>
+            <option value="2">2 images</option>
+            <option value="4">4 images</option>
+          </select>
+        </div>
+      </div>
+
+      <p class="cost-note">Generating more than one image uses more provider credits.</p>
+
+      <button id="generateBtn" class="generate-btn" type="button">
+        <span class="btn-label">Generate Image</span>
+        <span class="sparkle">✦</span>
+      </button>
+      <p id="error" class="error" hidden></p>
+    </section>
+
+    <section id="resultSection" class="result-section" hidden>
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow small">RESULT</p>
+          <h2>Your creation</h2>
+        </div>
+        <div class="actions">
+          <button id="downloadBtn" class="secondary-btn" type="button">↓ Download</button>
+          <button id="regenerateBtn" class="secondary-btn" type="button">↻ Regenerate</button>
+        </div>
+      </div>
+      <div class="result-card">
+        <div id="loading" class="loading" hidden>
+          <div class="spinner"></div>
+          <p id="loadingText">Creating your image...</p>
+          <span id="loadingSubtext">Please keep this tab open.</span>
+        </div>
+        <div id="resultGrid" class="result-grid"></div>
+      </div>
+    </section>
+
+    <section class="gallery-section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow small">HISTORY</p>
+          <h2>Recent creations</h2>
+        </div>
+        <button id="clearGallery" class="text-btn" type="button">Clear history</button>
+      </div>
+      <div id="gallery" class="gallery"></div>
+      <p id="emptyGallery" class="empty">Your generated images will appear here.</p>
+    </section>
+  </main>
+
+  <script src="/script.js"></script>
+</body>
+</html>

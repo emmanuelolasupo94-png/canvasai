@@ -1,0 +1,16 @@
+{
+  "name": "canvasai-image-studio",
+  "version": "4.0.0",
+  "private": true,
+  "description": "CanvasAI - public-ready AI image studio powered by Hugging Face Inference Providers.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@huggingface/inference": "^4.13.28",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0"
+  }
+}
